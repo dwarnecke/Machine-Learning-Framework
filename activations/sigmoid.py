@@ -1,0 +1,30 @@
+"""
+Sigmoid delineating activation function
+
+sigmoid(x) = 1 / (1 + exp(-x))
+"""
+
+__author__ = 'Dylan Warnecke'
+
+__version__ = '1.0'
+
+import numpy as np
+
+
+def calculate(logits: np.ndarray, overflow_clip=700) -> np.ndarray:
+    """
+    Calculate activation values using the sigmoid activation function.
+    :param logits: The values to be input into the sigmoid function
+    :param overflow_clip: The value to clip the array at to prevent overflow
+    :return: The sigmoid outputs of the respective inputs
+    """
+    return 1 / (1 + np.exp(np.clip(-logits, -overflow_clip, overflow_clip)))
+
+
+def differentiate(logits: np.ndarray) -> np.ndarray:
+    """
+    Differentiate the sigmoid function at specified input points.
+    :param logits: The values to differentiate the function at
+    :return: The point derivatives of the logits input
+    """
+    return calculate(logits) * (1 - calculate(logits))
