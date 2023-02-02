@@ -1,5 +1,5 @@
 """
-Tanh delineating activation function
+Tanh delineating activation function.
 
 tanh(x) = (exp(x) - exp(-x)) / (exp(x) + exp(-x))
 """

@@ -1,5 +1,5 @@
 """
-Initialization file for the activations package
+Initialization file for the activations package.
 """
 
 __author__ = 'Dylan Warnecke'
