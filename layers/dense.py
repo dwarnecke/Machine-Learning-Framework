@@ -1,5 +1,5 @@
 """
-Dense, fully connected layer in a machine learning model
+Dense layer in a machine learning model.
 """
 
 __author__ = 'Dylan Warnecke'
@@ -47,14 +47,13 @@ class Dense(Layer):
 
     def compile(self, units: int):
         """
-        Initialize parameters to connect the layer properly in a model.
+        Initialize the parameters to connect the model together and prepare
+        the layer for use.
         :param units: The number of nodes leading into this layer
         """
 
         # Check and that input units is a positive integer
-        if type(units) != int:
-            raise TypeError("Input units must be an integer.")
-        elif units < 1:
+        if units < 1:
             raise ValueError("Input units must be greater than zero.")
 
         # Initialize the weights according to activation function
@@ -71,16 +70,20 @@ class Dense(Layer):
         elif self._ACTIVATION is None:
             self._weight = generator.normal(0, 1 / units, (units, self.UNITS))
 
-        # Initialize the bias at zero
-        self._bias = np.zeros((1, self.UNITS))
+        self._bias = np.zeros((1, self.UNITS))  # Initialize the bias at zero
 
-        # Change the layer compilation flag
-        self._is_compiled = True
+        self._is_compiled = True  # Change the layer compilation flag
 
-    def forward(self, layer_inputs: np.ndarray) -> np.ndarray:
+    def forward(
+            self,
+            layer_inputs: np.ndarray,
+            in_training: bool) -> np.ndarray:
         """
-        Pass through this dense layer with forward propagation.
+        Pass through this dense layer in forward propagation. Inputs are
+        linearly transformed, offset by a bias, and delineated with a
+        nonlinear activation function.
         :param layer_inputs: The inputs to this dense layer
+        :param in_training: If the model is currently training
         :return: The activated values that the layer calculates
         """
 
@@ -102,17 +105,22 @@ class Dense(Layer):
         linear_mediums = np.dot(layer_inputs, self._weight) + self._bias
 
         # Delineate the outputs using activation functions
-        layer_outputs = activations.calculate(self._ACTIVATION, linear_mediums)
+        layer_outputs = activations.calculate(
+            self._ACTIVATION,
+            linear_mediums)
 
-        # Cache these values for backpropagation later
-        self._layer_inputs = layer_inputs
-        self._linear_mediums = linear_mediums
+        if in_training:
+            # Cache these values for backpropagation later
+            self._layer_inputs = layer_inputs
+            self._linear_mediums = linear_mediums
 
-        return layer_outputs
+        return layer_outputs  # Return the propagated inputs
 
     def backward(self, output_gradients: np.ndarray) -> np.ndarray:
         """
-        Pass through this dense layer with backward propagation by finding
+        Pass through this dense layer in backward propagation. Gradients
+        will propagate in proportion to the weights associated and the
+        derivative of the activation function.
         :param output_gradients: The loss derivatives respecting outputs
         :return: The partial derivatives of the loss with input respect
         """
@@ -154,7 +162,7 @@ class Dense(Layer):
         self._weight_gradients = weight_gradients
         self._bias_gradients = bias_gradients
 
-        return input_gradients
+        return input_gradients  # Return the layer gradients
 
     def update(self, learning_rate: float or int):
         """

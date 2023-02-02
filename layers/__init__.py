@@ -1,5 +1,5 @@
 """
-Initialization package for the layers package
+Initialization module for the layers package.
 """
 
 __author__ = 'Dylan Warnecke'
@@ -7,11 +7,12 @@ __author__ = 'Dylan Warnecke'
 __version__ = '1.0'
 
 from layers.dense import Dense
+from layers.dropout import Dropout
 from layers.input_layer import InputLayer
 from layers.softmax import Softmax
 
 # Ensure that these always match the names of the modules in this package
-valid_layers = (Dense, InputLayer, Softmax)
+valid_layers = (Dense, Dropout, InputLayer, Softmax)
 
 
 def verify_layer(layer: object) -> bool:

@@ -1,5 +1,5 @@
 """
-Relu delineating activation function
+Relu delineating activation function.
 
 relu(x) = max(x, 0)
 """

@@ -27,8 +27,9 @@ class Softmax(Layer):
     def compile(self, input_units: int):
         """
         Fully compile the softmax layer by appropriately setting the units
-        variable of the layer.
-        :param input_units: The number of logit units being input to the layer
+        variable of the layer to connect the model and prepare the layer for
+        use.
+        :param input_units: The number of units being input to the layer
         """
 
         # Check and properly initialize the units in this layer
@@ -40,10 +41,16 @@ class Softmax(Layer):
 
         self._is_compiled = True  # Change the layer compilation flag
 
-    def forward(self, logit_inputs: np.ndarray) -> np.ndarray:
+    def forward(
+            self,
+            logit_inputs: np.ndarray,
+            in_training: bool) -> np.ndarray:
         """
-        Pass through this softmax layer with forward propagation.
+        Pass through this softmax layer in forward propagation. Softmax
+        normalization delineates the input values and converts the feature
+        layers into probabilities.
         :param logit_inputs: The inputs to this softmax model layer
+        :param in_training: If the model is currently being trained
         :return: The softmax normalized values of the input along the axis
         """
 
@@ -59,9 +66,11 @@ class Softmax(Layer):
 
         # Check that the input logits matches the number of units
         if logit_inputs.shape[1] != self.UNITS:
-            raise ValueError("Input axis dimension size and units must match.")
+            raise ValueError("Logit inputs size and units must match.")
 
-        self._logit_inputs = logit_inputs  # Cache the inputs for later use
+        if in_training:
+            # Cache the inputs for later use
+            self._logit_inputs = logit_inputs
 
         # Use the softmax function to convert logits to probability
         odd_mediums = np.exp(logit_inputs)
@@ -69,13 +78,14 @@ class Softmax(Layer):
 
         self._softmax_outputs = softmax_outputs  # Cache the outputs for later
 
-        return softmax_outputs
+        return softmax_outputs  # Return the activated softmax values
 
     def backward(self, output_gradients: np.ndarray) -> np.ndarray:
         """
-        Pass through this layer with backward propagation by calculating the
-        partial derivatives of the loss function with respect to the softmax
-        input logits.
+        Pass through this softmax layer in backward propagation. Because of
+        the multi-input nature of the softmax function, softmax backward
+        propagation requires indexing a higher dimensional tensor therefore
+        being computationally expensive.
         :param output_gradients: The loss derivatives respecting outputs
         :return: The partial derivatives of the loss respecting the inputs
         """
@@ -103,22 +113,22 @@ class Softmax(Layer):
         softmax_gradients = np.zeros((n_samples, self.UNITS, self.UNITS))
 
         # Calculate the partial softmax derivatives respecting each logit
-        for softmax_idx in range(self.UNITS):
-            for logit_idx in range(softmax_idx, self.UNITS):
-                if logit_idx != softmax_idx:
-                    # Make use of the symmetrical matrix property
+        for max_idx in range(self.UNITS):
+            for logit_idx in range(max_idx, self.UNITS):
+                if logit_idx != max_idx:
+                    # Make use of the fact the matrices are symmetrical
                     off_gradient = \
-                        -layer_outputs[:, softmax_idx] \
-                        * layer_outputs[:, logit_idx]
-                    softmax_gradients[:, softmax_idx, logit_idx] = off_gradient
-                    softmax_gradients[:, logit_idx, softmax_idx] = off_gradient
+                        -(layer_outputs[:, max_idx]
+                          * layer_outputs[:, logit_idx])
+                    softmax_gradients[:, max_idx, logit_idx] = off_gradient
+                    softmax_gradients[:, logit_idx, max_idx] = off_gradient
                 else:
-                    softmax_gradients[:, softmax_idx, logit_idx] = \
-                        layer_outputs[:, logit_idx] \
-                        * (1 - layer_outputs[:, logit_idx])
+                    softmax_gradients[:, max_idx, logit_idx] = \
+                        (layer_outputs[:, logit_idx]
+                         * (1 - layer_outputs[:, logit_idx]))
 
         # Calculate the logit gradients
         logit_gradients = output_gradients[:, np.newaxis] @ softmax_gradients
         logit_gradients = logit_gradients.squeeze()
 
-        return logit_gradients
+        return logit_gradients  # Return the logit gradients
