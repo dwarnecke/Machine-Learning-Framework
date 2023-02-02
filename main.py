@@ -9,7 +9,7 @@ __version__ = '1.0'
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from layers import Dense, InputLayer, Softmax
+from layers import Dense, Dropout, InputLayer, Softmax
 from losses.categorical_cross_entropy import CategoricalCrossEntropy
 from model import Model
 from utilities import make_one_hot
@@ -25,19 +25,20 @@ if __name__ == '__main__':
 
     # Make the machine learning model
     digit_model = Model(
-        CategoricalCrossEntropy(from_logits=False),
+        CategoricalCrossEntropy(from_logits=True),
         InputLayer(784),
         Dense(128, 'relu'),
+        Dropout(0.3),
         Dense(128, 'relu'),
-        Dense(10),
-        Softmax())
+        Dropout(0.3),
+        Dense(10))
 
     # Fit the model using gradient descent
-    num_epochs = 30
+    num_epochs = 50
     training_history = digit_model.fit(
         training_pixels,
         training_digits,
-        2 ** 7,
+        2 ** 8,
         num_epochs,
         1e-2)
 

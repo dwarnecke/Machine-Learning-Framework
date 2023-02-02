@@ -1,6 +1,5 @@
 """
-Utilities file for functions that don't necessarily fit anywhere else in the
-project.
+Utilities file for excess functions needed for the project.
 """
 
 __author__ = 'Dylan Warnecke'

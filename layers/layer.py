@@ -1,8 +1,8 @@
 """
-Parent class for all machine learning model layers
+Parent class for all model layer classes.
 """
 
-__author__ = "Dylan Warnecke"
+__author__ = 'Dylan Warnecke'
 
 __version__ = '1.0'
 
@@ -16,8 +16,5 @@ class Layer:
         :param is_trainable: If the layer is trainable or not
         """
 
-        # Define the layer compilation flag
-        self._is_compiled = False
-
-        # Set if the layer is trainable or compilable
-        self.IS_TRAINABLE = is_trainable
+        self._is_compiled = False  # Define the layer compilation flag
+        self.IS_TRAINABLE = is_trainable  # Set if the layer is trainable

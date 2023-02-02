@@ -40,13 +40,14 @@ class Model:
         # Connect the layers to one another
         for layer_idx, layer in enumerate(model_layers):
             if layer_idx == 0:
-                continue
-            layer.compile(model_layers[layer_idx - 1].UNITS)
+                self._INPUT_UNITS = layer.UNITS
+            else:
+                layer.compile(model_layers[layer_idx - 1].UNITS)
 
         # Message that the model is built
         print(f"Model built with {len(self._LAYERS)} layers\n")
 
-    def predict(self, examples: np.ndarray):
+    def predict(self, examples: np.ndarray) -> np.ndarray:
         """
         Forward propagate through the model to get the respective outputs of
         the given inputs given the current model parameters.
@@ -54,10 +55,14 @@ class Model:
         :return: The respective model predictions of the inputs
         """
 
+        # Check that the input shape is consistent
+        if examples.shape[1] != self._INPUT_UNITS:
+            raise ValueError("Number of inputs must be consistent.")
+
         # Forward propagate through model
         inputs_propagated = examples
         for layer in self._LAYERS:
-            inputs_propagated = layer.forward(inputs_propagated)
+            inputs_propagated = layer.forward(inputs_propagated, False)
 
         return inputs_propagated  # Return the model outputs
 
@@ -85,6 +90,10 @@ class Model:
         if epochs < 1:
             raise ValueError("Epochs must be positive.")
 
+        # Check that the input shape is consistent
+        if examples.shape[1] != self._INPUT_UNITS:
+            raise ValueError("Number of inputs must be consistent.")
+
         training_history = np.empty(epochs)  # Define the training history
 
         # Properly define the training batch size
@@ -110,14 +119,19 @@ class Model:
                 batch_examples = permuted_examples[lower_idx: upper_idx]
                 batch_labels = permuted_labels[lower_idx: upper_idx]
 
-                # Take a single step in batch descent
-                batch_outputs = self.predict(batch_examples)
+                # Forward propagate through the model
+                forward_inputs = batch_examples
+                for layer in self._LAYERS:
+                    forward_inputs = layer.forward(forward_inputs, True)
+                batch_outputs = forward_inputs
+
+                # Backward propagate through the model
                 output_gradients = self._LOSS.gradate(
                     batch_outputs,
                     batch_labels)
-                propagated_gradients = output_gradients
+                backward_gradients = output_gradients
                 for layer in reversed(self._LAYERS):
-                    propagated_gradients = layer.backward(propagated_gradients)
+                    backward_gradients = layer.backward(backward_gradients)
 
                 # Update the layers with the parameter gradients
                 for layer in self._LAYERS:

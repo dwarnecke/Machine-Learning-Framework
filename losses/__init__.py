@@ -1,5 +1,5 @@
 """
-Initialization file for the losses package
+Initialization module for the losses package.
 """
 
 __author__ = 'Dylan Warnecke'

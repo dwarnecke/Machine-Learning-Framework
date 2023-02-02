@@ -7,6 +7,9 @@ that each input case falls into.
 
 import numpy as np
 
+# Small value to offset division by zero
+epsilon = 1e-16
+
 
 def calculate_softmax(logits: np.ndarray) -> np.ndarray:
     """
@@ -14,7 +17,12 @@ def calculate_softmax(logits: np.ndarray) -> np.ndarray:
     :param logits: The values to be normalized
     :return: The softmax normalization of the input logits
     """
-    return np.exp(logits) / np.sum(np.exp(logits), axis=1)
+
+    # Calculate the softmax values of the logit values
+    odds = np.exp(logits)
+    probabilities = odds / (np.sum(odds, axis=1)[:, np.newaxis] + epsilon)
+
+    return probabilities  # Return the calculated softmax
 
 
 class CategoricalCrossEntropy:
