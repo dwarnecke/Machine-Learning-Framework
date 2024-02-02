@@ -4,45 +4,48 @@ Neural network models to fit complex data using supervised learning.
 
 __author__ = 'Dylan Warnecke'
 
-__version__ = '1.0'
+__version__ = '1.1'
 
 import numpy as np
 import layers
 import losses
+import optimizers
 from layers.input_layer import InputLayer
-
 
 class Model:
     def __init__(
             self,
             loss: losses.valid_losses,
+            optimizer: optimizers.valid_optimizers,
             *model_layers: layers.valid_layers):
         """
         Create the neural network model.
-        :param loss: The loss function to optimize the model
+        :param loss: The loss function to optimize the model with
+        :param optimizer: The optimizer to update the parameters with
         :param model_layers: The layers to be implemented into the model
         """
 
         print("Model is being built...")  # Message the model is being built
 
         self._LOSS = loss  # Define the model loss function
+        self._OPTIMIZER = optimizer # Define the model optimizer
 
         # Check the layer types
         for layer_idx, layer in enumerate(model_layers):
             if not layers.verify_layer(layer):
                 raise TypeError("Model layer arguments must be layers.")
             elif layer_idx != 0 and isinstance(layer, InputLayer):
-                raise ValueError("Input layers can only the first layer.")
+                raise ValueError("Input layers can only be the first layer.")
             elif layer_idx == 0 and not isinstance(layer, InputLayer):
                 raise ValueError("The first layer must be an input layer.")
         self._LAYERS = model_layers
 
-        # Connect the layers to one another
+        # Connect the layers together
         for layer_idx, layer in enumerate(model_layers):
             if layer_idx == 0:
                 self._INPUT_UNITS = layer.UNITS
             else:
-                layer.compile(model_layers[layer_idx - 1].UNITS)
+                layer.compile(layer_idx, model_layers[layer_idx - 1].UNITS)
 
         # Message that the model is built
         print(f"Model built with {len(self._LAYERS)} layers\n")
@@ -72,7 +75,7 @@ class Model:
             labels: np.ndarray,
             batch_size: int,
             epochs: int,
-            learning_rate: float or int):
+            learning_rate: float):
         """
         Optimize the model using batch gradient descent and the compilation
         parameters.
@@ -136,7 +139,7 @@ class Model:
                 # Update the layers with the parameter gradients
                 for layer in self._LAYERS:
                     if layer.IS_TRAINABLE:
-                        layer.update(learning_rate)
+                        layer.update(self._OPTIMIZER, learning_rate)
 
             # Calculate and cache the current model metrics
             current_outputs = self.predict(examples)

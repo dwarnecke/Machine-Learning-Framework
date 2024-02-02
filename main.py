@@ -12,6 +12,7 @@ import pandas as pd
 from layers import Dense, Dropout, InputLayer, Softmax
 from losses.categorical_cross_entropy import CategoricalCrossEntropy
 from model import Model
+from optimizers.momentum import Momentum
 from utilities import make_one_hot
 
 
@@ -26,6 +27,7 @@ if __name__ == '__main__':
     # Make the machine learning model
     digit_model = Model(
         CategoricalCrossEntropy(from_logits=True),
+        Momentum(0.9),
         InputLayer(784),
         Dense(128, 'relu'),
         Dropout(0.3),
@@ -34,7 +36,7 @@ if __name__ == '__main__':
         Dense(10))
 
     # Fit the model using gradient descent
-    num_epochs = 50
+    num_epochs = 30
     training_history = digit_model.fit(
         training_pixels,
         training_digits,
@@ -81,5 +83,5 @@ if __name__ == '__main__':
         # Check if the model should still be evaluated
         if (digit_idx + 1) % 10 == 0:
             keyboard_input = input("Continue evaluation (y/n): ")
-            if keyboard_input == 'n':
+            if keyboard_input != 'y':
                 break
