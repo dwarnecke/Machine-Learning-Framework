@@ -24,20 +24,26 @@ class Softmax(Layer):
         self._logit_inputs = None
         self._softmax_outputs = None
 
-    def compile(self, input_units: int):
+        self._network_id = None  # Define the network identification key
+
+    def compile(self, layer_idx: int, input_units: int):
         """
         Fully compile the softmax layer by appropriately setting the units
         variable of the layer to connect the model and prepare the layer for
         use.
+        :param layer_idx: The layer number in the larger network
         :param input_units: The number of units being input to the layer
         """
 
-        # Check and properly initialize the units in this layer
-        if type(input_units) != int:
-            raise TypeError("Input units must be an integer.")
+        # Check and that layer index and input units are positive integers
+        if layer_idx < 1:
+            raise ValueError("Layer index must be greater than zero.")
         elif input_units < 1:
             raise ValueError("Input units must be greater than zero.")
         self.UNITS = input_units
+
+        # Set the network identification key
+        self._network_id = 'Softmax' + str(layer_idx)
 
         self._is_compiled = True  # Change the layer compilation flag
 

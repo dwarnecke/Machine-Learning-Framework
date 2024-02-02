@@ -4,12 +4,14 @@ Dense layer in a machine learning model.
 
 __author__ = 'Dylan Warnecke'
 
-__version__ = '1.0'
+__version__ = '1.1'
 
 import math
 import numpy as np
-from layers.layer import Layer
+
 import activations
+import optimizers
+from layers.layer import Layer
 
 
 class Dense(Layer):
@@ -45,30 +47,45 @@ class Dense(Layer):
         self._weight_gradients = None
         self._bias_gradients = None
 
-    def compile(self, units: int):
+        # Define the network identification and parameter keys
+        self.network_id = None
+        self._weight_id = None
+        self._bias_id = None
+
+    def compile(self, layer_idx: int, input_units: int):
         """
         Initialize the parameters to connect the model together and prepare
         the layer for use.
-        :param units: The number of nodes leading into this layer
+        :param layer_idx: The layer number in the larger network
+        :param input_units: The number of nodes leading into this layer
         """
 
-        # Check and that input units is a positive integer
-        if units < 1:
+        # Check and that layer index and input units are positive integers
+        if layer_idx < 1:
+            raise ValueError("Layer index must be greater than zero.")
+        elif input_units < 1:
             raise ValueError("Input units must be greater than zero.")
+
+        # Set the network identification and parameter keys
+        self.network_id = 'Dense' + str(layer_idx)
+        self._weight_id = self.network_id + '_weight'
+        self._bias_id = self.network_id + '_bias'
 
         # Initialize the weights according to activation function
         generator = np.random.default_rng()
         if self._ACTIVATION in ('sigmoid', 'tanh'):
             # Initialize the weight using Xavier initialization
             self._weight = generator.uniform(
-                -6 / math.sqrt(units + self.UNITS),
-                6 / math.sqrt(units + self.UNITS),
-                (units, self.UNITS))
+                -6 / math.sqrt(input_units + self.UNITS),
+                6 / math.sqrt(input_units + self.UNITS),
+                (input_units, self.UNITS))
         elif self._ACTIVATION == 'relu':
             # Initialize weights using He initialization
-            self._weight = generator.normal(0, 2 / units, (units, self.UNITS))
+            self._weight = generator.normal(
+                0, 2 / input_units, (input_units, self.UNITS))
         elif self._ACTIVATION is None:
-            self._weight = generator.normal(0, 1 / units, (units, self.UNITS))
+            self._weight = generator.normal(
+                0, 1 / input_units, (input_units, self.UNITS))
 
         self._bias = np.zeros((1, self.UNITS))  # Initialize the bias at zero
 
@@ -121,7 +138,7 @@ class Dense(Layer):
         Pass through this dense layer in backward propagation. Gradients
         will propagate in proportion to the weights associated and the
         derivative of the activation function.
-        :param output_gradients: The loss derivatives respecting outputs
+        :param output_gradients: The loss gradients respecting outputs
         :return: The partial derivatives of the loss with input respect
         """
 
@@ -164,9 +181,13 @@ class Dense(Layer):
 
         return input_gradients  # Return the layer gradients
 
-    def update(self, learning_rate: float or int):
+    def update(
+            self,
+            optimizer: optimizers.valid_optimizers,
+            learning_rate: float):
         """
         Update the weight and bias parameters in one step of gradient descent.
+        :param optimizer: The optimizer to adjust the parameters with
         :param learning_rate: The rate at which to change the parameters by
         """
 
@@ -180,6 +201,16 @@ class Dense(Layer):
         if not self._is_compiled:
             raise AttributeError("Parameters must be initialized.")
 
+        # Calculate the parameter adjustment
+        if optimizer is not None:
+            weight_delta = optimizer.calculate_adjustment(
+                self._weight_id, self._weight_gradients, learning_rate)
+            bias_delta = optimizer.calculate_adjustment(
+                self._bias_id, self._bias_gradients, learning_rate)
+        else:
+            weight_delta = learning_rate * self._weight_gradients
+            bias_delta = learning_rate * self._bias_gradients
+
         # Update the parameters with gradient descent
-        self._weight = self._weight - learning_rate * self._weight_gradients
-        self._bias = self._bias - learning_rate * self._bias_gradients
+        self._weight = self._weight - weight_delta
+        self._bias = self._bias - bias_delta

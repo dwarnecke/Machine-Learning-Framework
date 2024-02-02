@@ -32,17 +32,25 @@ class Dropout(Layer):
         self._generator = np.random.default_rng()
         self._dropout_filter = None
 
-    def compile(self, input_units: int):
+        self._network_id = None # Define the network identification key
+
+    def compile(self, layer_idx: int, input_units: int):
         """
         Initialize the number of units this layer produces to connect the
         model together and prepare the layer for use.
+        :param layer_idx: The layer number in the larger network
         :param input_units: The number of units leading into this layer
         """
 
-        # Check and initialize the number of units in this layer
-        if input_units < 1:
-            raise ValueError("Input units must be positive.")
+        # Check and that layer index and input units are positive integers
+        if layer_idx < 1:
+            raise ValueError("Layer index must be greater than zero.")
+        elif input_units < 1:
+            raise ValueError("Input units must be greater than zero.")
         self.UNITS = input_units
+
+        # Set the network identification key
+        self._network_id = 'Dropout' + str(layer_idx)
 
         self._is_compiled = True  # Change the compilation flag
 
