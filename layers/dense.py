@@ -15,41 +15,36 @@ from layers.layer import Layer
 
 
 class Dense(Layer):
-    def __init__(self, units: int, activation=None):
+    def __init__(self, units: int, activation: str = None):
         """
         Create a fully connected dense layer for a neural network.
         :param units: The number of nodes the layer leads to
-        :param str activation: The activation function of the layer
+        :param activation: The activation function of the layer
         """
 
         # Call the superclass initializer
         super().__init__(True)
 
-        # Check and define the layer units
-        if type(units) != int:
-            raise ValueError("Units must be integers.")
+        # Check and define the layer architecture parameters
         if units < 1:
-            raise ValueError("Units must be greater than zero.")
-        self.UNITS = units
-
-        # Check and define the layer activation function
+            raise ValueError("Units must be positive.")
         if not activations.verify_activation(activation):
-            raise TypeError("Activation must be valid functions.")
+            raise TypeError("Activation must be a valid string.")
+        self.units = units
         self._ACTIVATION = activation
 
         # Define the layer weights and biases
-        self._weight = None
+        self._kernel = None
         self._bias = None
 
         # Define the layer calculation and parameter gradient retainers
         self._layer_inputs = None
         self._linear_mediums = None
-        self._weight_gradients = None
-        self._bias_gradients = None
+        self._kernel_grads = None
+        self._bias_grads = None
 
-        # Define the network identification and parameter keys
-        self.network_id = None
-        self._weight_id = None
+        # Define the parameter identification keys
+        self._kernel_id = None
         self._bias_id = None
 
     def compile(self, layer_idx: int, input_units: int):
@@ -66,28 +61,27 @@ class Dense(Layer):
         elif input_units < 1:
             raise ValueError("Input units must be greater than zero.")
 
-        # Set the network identification and parameter keys
-        self.network_id = 'Dense' + str(layer_idx)
-        self._weight_id = self.network_id + '_weight'
-        self._bias_id = self.network_id + '_bias'
+        # Define the network identification and parameter keys
+        self._network_id = 'Dense' + str(layer_idx)
+        self._kernel_id = self._network_id + '_kernel'
+        self._bias_id = self._network_id + '_bias'
 
         # Initialize the weights according to activation function
         generator = np.random.default_rng()
         if self._ACTIVATION in ('sigmoid', 'tanh'):
             # Initialize the weight using Xavier initialization
-            self._weight = generator.uniform(
-                -6 / math.sqrt(input_units + self.UNITS),
-                6 / math.sqrt(input_units + self.UNITS),
-                (input_units, self.UNITS))
+            scale = 6 / math.sqrt(input_units + self.units)
+            self._kernel = generator.uniform(
+                -scale, scale, (input_units, self.units))
         elif self._ACTIVATION == 'relu':
             # Initialize weights using He initialization
-            self._weight = generator.normal(
-                0, 2 / input_units, (input_units, self.UNITS))
+            self._kernel = generator.normal(
+                0, 2 / input_units, (input_units, self.units))
         elif self._ACTIVATION is None:
-            self._weight = generator.normal(
-                0, 1 / input_units, (input_units, self.UNITS))
+            self._kernel = generator.normal(
+                0, 1 / input_units, (input_units, self.units))
 
-        self._bias = np.zeros((1, self.UNITS))  # Initialize the bias at zero
+        self._bias = np.zeros((1, self.units))  # Initialize the bias at zero
 
         self._is_compiled = True  # Change the layer compilation flag
 
@@ -115,30 +109,30 @@ class Dense(Layer):
             raise ValueError("Layer inputs must be two dimensional.")
 
         # Check that the input layer shape matches the weight shape
-        if layer_inputs.shape[1] != self._weight.shape[0]:
+        if layer_inputs.shape[-1] != self._kernel.shape[0]:
             raise ValueError("Weight and input middle dimension must match.")
 
         # Scale by the weights and offset with bias
-        linear_mediums = np.dot(layer_inputs, self._weight) + self._bias
+        linear_mediums = np.dot(layer_inputs, self._kernel) + self._bias
 
         # Delineate the outputs using activation functions
         layer_outputs = activations.calculate(
             self._ACTIVATION,
             linear_mediums)
 
+        # Cache these values for backpropagation later
         if in_training:
-            # Cache these values for backpropagation later
             self._layer_inputs = layer_inputs
             self._linear_mediums = linear_mediums
 
         return layer_outputs  # Return the propagated inputs
 
-    def backward(self, output_gradients: np.ndarray) -> np.ndarray:
+    def backward(self, output_grads: np.ndarray) -> np.ndarray:
         """
         Pass through this dense layer in backward propagation. Gradients
         will propagate in proportion to the weights associated and the
         derivative of the activation function.
-        :param output_gradients: The loss gradients respecting outputs
+        :param output_grads: The loss gradients respecting layer outputs
         :return: The partial derivatives of the loss with input respect
         """
 
@@ -147,9 +141,9 @@ class Dense(Layer):
             raise AttributeError("Parameters must be initialized.")
 
         # Check that the input is a two-dimensional numpy array
-        if type(output_gradients) != np.ndarray:
+        if type(output_grads) != np.ndarray:
             raise TypeError("Output gradients must be a numpy array.")
-        if np.ndim(output_gradients) != 2:
+        if np.ndim(output_grads) != 2:
             raise ValueError("Output gradients must be two dimensional.")
 
         # Check that forward propagation has been completed
@@ -157,7 +151,7 @@ class Dense(Layer):
             raise ValueError("Forward propagation must be completed first.")
 
         # Check that the output layer shape matches the number of layer units
-        if output_gradients.shape[1] != self.UNITS:
+        if output_grads.shape[1] != self.units:
             raise ValueError("Output and weight middle dimension must match.")
 
         # Retrieve the forward propagation values
@@ -165,21 +159,21 @@ class Dense(Layer):
         layer_inputs = self._layer_inputs
 
         # Calculate the activation derivatives and linear gradients
-        activation_gradients = activations.differentiate(
+        activation_grads = activations.differentiate(
             self._ACTIVATION,
             linear_mediums)
-        linear_gradients = activation_gradients * output_gradients
+        linear_grads = activation_grads * output_grads
 
         # Calculate the weight and layer gradients
-        weight_gradients = np.dot(layer_inputs.T, linear_gradients)
-        bias_gradients = linear_gradients.sum(axis=0)[np.newaxis]
-        input_gradients = np.dot(linear_gradients, self._weight.T)
+        kernel_grads = np.dot(layer_inputs.T, linear_grads)
+        bias_grads = linear_grads.sum(axis=0)[np.newaxis]
+        input_grads = np.dot(linear_grads, self._kernel.T)
 
         # Save the parameter gradients for updating later
-        self._weight_gradients = weight_gradients
-        self._bias_gradients = bias_gradients
+        self._kernel_grads = kernel_grads
+        self._bias_grads = bias_grads
 
-        return input_gradients  # Return the layer gradients
+        return input_grads  # Return the layer input gradients
 
     def update(
             self,
@@ -204,13 +198,13 @@ class Dense(Layer):
         # Calculate the parameter adjustment
         if optimizer is not None:
             weight_delta = optimizer.calculate_adjustment(
-                self._weight_id, self._weight_gradients, learning_rate)
+                self._kernel_id, self._kernel_grads, learning_rate)
             bias_delta = optimizer.calculate_adjustment(
-                self._bias_id, self._bias_gradients, learning_rate)
+                self._bias_id, self._bias_grads, learning_rate)
         else:
-            weight_delta = learning_rate * self._weight_gradients
-            bias_delta = learning_rate * self._bias_gradients
+            weight_delta = learning_rate * self._kernel_grads
+            bias_delta = learning_rate * self._bias_grads
 
         # Update the parameters with gradient descent
-        self._weight = self._weight - weight_delta
+        self._kernel = self._kernel - weight_delta
         self._bias = self._bias - bias_delta

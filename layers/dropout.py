@@ -26,13 +26,11 @@ class Dropout(Layer):
             raise ValueError("Dropout rate must be between 0 and 1.")
         self._RATE = rate
 
-        self.UNITS = None  # Define the layer units constant
+        self.units = None  # Define the layer units constant
 
         # Define the dropout filter retainer and random generator
         self._generator = np.random.default_rng()
         self._dropout_filter = None
-
-        self._network_id = None # Define the network identification key
 
     def compile(self, layer_idx: int, input_units: int):
         """
@@ -47,7 +45,7 @@ class Dropout(Layer):
             raise ValueError("Layer index must be greater than zero.")
         elif input_units < 1:
             raise ValueError("Input units must be greater than zero.")
-        self.UNITS = input_units
+        self.units = input_units
 
         # Set the network identification key
         self._network_id = 'Dropout' + str(layer_idx)
@@ -73,11 +71,11 @@ class Dropout(Layer):
             raise AttributeError("Number of units must be defined.")
 
         # Check that the inputs match the number of units
-        if layer_inputs.shape[1] != self.UNITS:
+        if layer_inputs.shape[-1] != self.units:
             raise ValueError("Number of input units must be consistent.")
 
+        # Filter certain input units with dropout
         if in_training:
-            # Filter certain input units with dropout
             filter_values = self._generator.random(size=layer_inputs.shape)
             dropout_filter = filter_values > self._RATE
             filtered_inputs = np.where(dropout_filter, layer_inputs, 0)
@@ -90,12 +88,12 @@ class Dropout(Layer):
 
         return layer_outputs  # Return the possibly dropped outputs
 
-    def backward(self, output_gradients):
+    def backward(self, output_grads):
         """
         Pass through this layer in backpropagation. Gradients only will
         propagate if their respective input counterparts managed to pass the
         dropout filter.
-        :param output_gradients: The loss gradients respecting the outputs
+        :param output_grads: The loss gradients respecting the outputs
         :return: The loss gradients respecting the layer inputs
         """
 
@@ -104,13 +102,13 @@ class Dropout(Layer):
             raise AttributeError("Number of units must be defined.")
 
         # Check that the inputs match the number of units
-        if output_gradients.shape[1] != self.UNITS:
+        if output_grads.shape[1] != self.units:
             raise ValueError("Number of input units must be consistent.")
 
         # Calculate the loss gradients respecting the inputs
-        rescaled_gradients = output_gradients / (1 - self._RATE)
-        input_gradients = np.where(
+        rescaled_grads = output_grads / (1 - self._RATE)
+        input_grads = np.where(
             self._dropout_filter,
-            rescaled_gradients, 0)
+            rescaled_grads, 0)
 
-        return input_gradients  # Return the input gradients
+        return input_grads  # Return the layer input gradients
