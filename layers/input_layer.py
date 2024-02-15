@@ -11,21 +11,17 @@ from layers.layer import Layer
 
 
 class InputLayer(Layer):
-    def __init__(self, units: int):
+    def __init__(self, input_dim: int):
         """
         Create the input layer to the machine learning model. Each model
         must place an input layer at the start and only at the start.
-        :param units: The number of features input to the model
+        :param input_dim: The number of features input to the model
         """
 
-        super().__init__(False)  # Call the super class initializer
+        # Call the super class initializer
+        super().__init__(False)
 
-        # Check and define the layer units
-        if type(units) != int:
-            raise ValueError("Units must be integers.")
-        if units < 1:
-            raise ValueError("Units must be greater than zero.")
-        self.UNITS = units
+        self.units = input_dim  # Define the input units constant
 
     def forward(
             self,
@@ -46,28 +42,28 @@ class InputLayer(Layer):
             raise ValueError("Model inputs must be two dimensional.")
 
         # Check that the number of inputs is consistent
-        if model_inputs.shape[1] != self.UNITS:
+        if model_inputs.shape[-1] != self.units:
             raise ValueError("Number of inputs must be consistent.")
 
         return model_inputs  # Return the model inputs
 
-    def backward(self, output_gradients: np.ndarray) -> np.ndarray:
+    def backward(self, output_grads: np.ndarray) -> np.ndarray:
         """
         Pass through this input layer in backward propagation. The gradients
         are practically useless at this point as all parameters have been
         updated accordingly.
-        :param output_gradients: The loss gradients respecting the inputs
+        :param output_grads: The loss gradients respecting the inputs
         :return: The same gradients of the inputs
         """
 
         # Check that the input is a two-dimensional numpy array
-        if type(output_gradients) != np.ndarray:
+        if type(output_grads) != np.ndarray:
             raise TypeError("Output gradients must be a numpy array.")
-        if np.ndim(output_gradients) != 2:
+        if np.ndim(output_grads) != 2:
             raise ValueError("Output gradients must be two dimensional.")
 
         # Check that the inputs match the number of units
-        if output_gradients.shape[1] != self.UNITS:
+        if output_grads.shape[1] != self.units:
             raise ValueError("Number of input features must be consistent.")
 
-        return output_gradients  # Return feature loss gradients
+        return output_grads  # Return the feature loss gradients

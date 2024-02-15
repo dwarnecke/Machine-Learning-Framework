@@ -1,5 +1,5 @@
 """
-Momentum optimizer for a network layer parameter.
+Momentum optimizer to train a model.
 """
 
 __author__ = 'Dylan Warnecke'
@@ -12,7 +12,7 @@ import numpy as np
 class Momentum:
     def __init__(self, beta: float):
         """
-        Create a momentum optimizer for a network parameter.
+        Create a momentum optimizer for a model.
         :param beta: The weight of the previous momentum term
         """
 
@@ -23,26 +23,26 @@ class Momentum:
     def calculate_adjustment(
             self,
             parameter_id: str,
-            parameter_gradients: np.ndarray,
+            parameter_grads: np.ndarray,
             learning_rate: float) -> np.ndarray:
         """
-        Calculate the adjustment term for optimizing the parameter.
-        :param learning_rate: The rate at which to change the parameters by
-        :param parameter_gradients: The loss gradients respecting parameters
+        Calculate the adjustment term for optimizing any parameter.
         :param parameter_id: The identification string for the cache
+        :param parameter_grads: The loss gradients respecting parameters
+        :param learning_rate: The rate at which to change the parameters by
         :return: The values to update the parameters by
         """
 
         # Retrieve the previous parameter momentum
-        previous_momentum = self._momentum_cache.get(parameter_id, None)
+        prev_momentum = self._momentum_cache.get(parameter_id, None)
 
         # Calculate the momentum term of this iteration
-        if previous_momentum is not None:
-            momentum_partial = self._BETA * previous_momentum
-            gradient_partial = (1 - self._BETA) * parameter_gradients
-            momentum = momentum_partial + gradient_partial
+        if prev_momentum is not None:
+            momentum_partial = self._BETA * prev_momentum
+            grads_partial = (1 - self._BETA) * parameter_grads
+            momentum = momentum_partial + grads_partial
         else:
-            momentum = parameter_gradients
+            momentum = parameter_grads
 
         # Cache the momentum for later use
         self._momentum_cache[parameter_id] = momentum
