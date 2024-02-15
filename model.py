@@ -12,11 +12,11 @@ import losses
 import optimizers
 from layers.input_layer import InputLayer
 
+
 class Model:
     def __init__(
             self,
             loss: losses.valid_losses,
-            optimizer: optimizers.valid_optimizers,
             *model_layers: layers.valid_layers):
         """
         Create the neural network model.
@@ -28,7 +28,6 @@ class Model:
         print("Model is being built...")  # Message the model is being built
 
         self._LOSS = loss  # Define the model loss function
-        self._OPTIMIZER = optimizer # Define the model optimizer
 
         # Check the layer types
         for layer_idx, layer in enumerate(model_layers):
@@ -43,9 +42,9 @@ class Model:
         # Connect the layers together
         for layer_idx, layer in enumerate(model_layers):
             if layer_idx == 0:
-                self._INPUT_UNITS = layer.UNITS
+                self._INPUT_UNITS = layer.units
             else:
-                layer.compile(layer_idx, model_layers[layer_idx - 1].UNITS)
+                layer.compile(layer_idx, model_layers[layer_idx - 1].units)
 
         # Message that the model is built
         print(f"Model built with {len(self._LAYERS)} layers\n")
@@ -59,7 +58,7 @@ class Model:
         """
 
         # Check that the input shape is consistent
-        if examples.shape[1] != self._INPUT_UNITS:
+        if examples.shape[-1] != self._INPUT_UNITS:
             raise ValueError("Number of inputs must be consistent.")
 
         # Forward propagate through model
@@ -74,30 +73,32 @@ class Model:
             examples: np.ndarray,
             labels: np.ndarray,
             batch_size: int,
-            epochs: int,
-            learning_rate: float):
+            num_epochs: int,
+            learning_rate: float,
+            optimizer: optimizers.valid_optimizers = None):
         """
         Optimize the model using batch gradient descent and the compilation
         parameters.
         :param examples: The training examples to fit the model on
         :param labels: The ground truth labels for the samples provided
         :param batch_size: The size of each batch in training
-        :param epochs: The number of epochs to train the model for
+        :param num_epochs: The number of epochs to train the model for
         :param learning_rate: The rate at which to update the parameters at
         :return: The training history of the model
+        :param optimizer: The optimizer algorithm to train the model
         """
 
         # Check that the batch size and epochs are positive
         if batch_size < 1:
             raise ValueError("Batch size must be positive.")
-        if epochs < 1:
+        if num_epochs < 1:
             raise ValueError("Epochs must be positive.")
 
         # Check that the input shape is consistent
-        if examples.shape[1] != self._INPUT_UNITS:
+        if examples.shape[-1] != self._INPUT_UNITS:
             raise ValueError("Number of inputs must be consistent.")
 
-        training_history = np.empty(epochs)  # Define the training history
+        training_history = np.empty(num_epochs)  # Define the training history
 
         # Properly define the training batch size
         n_examples = examples.shape[0]
@@ -105,11 +106,11 @@ class Model:
             batch_size = n_examples
 
         # Message the model is building
-        print(f"Fitting the model over {epochs} epochs...")
+        print(f"Fitting the model over {num_epochs} epochs...")
 
         # Fit the model using batch descent
         generator = np.random.default_rng()
-        for epoch in range(epochs):
+        for epoch in range(num_epochs):
             # Shuffle the training examples and labels
             shuffling_indices = generator.permutation(n_examples)
             permuted_examples = examples[shuffling_indices]
@@ -139,7 +140,7 @@ class Model:
                 # Update the layers with the parameter gradients
                 for layer in self._LAYERS:
                     if layer.IS_TRAINABLE:
-                        layer.update(self._OPTIMIZER, learning_rate)
+                        layer.update(optimizer, learning_rate)
 
             # Calculate and cache the current model metrics
             current_outputs = self.predict(examples)
@@ -150,6 +151,6 @@ class Model:
             print(f"Epoch {epoch + 1}: loss {round(current_loss, 4)}")
 
         # Message that the model is trained
-        print(f"Model is fit after {epochs} epochs\n")
+        print(f"Model is fit after {num_epochs} epochs\n")
 
         return training_history  # Return the training history
