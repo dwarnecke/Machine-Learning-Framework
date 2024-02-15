@@ -10,7 +10,7 @@ import numpy as np
 
 
 class RMSProp:
-    def __init__(self, beta: float, epsilon = 1e-8):
+    def __init__(self, beta: float, epsilon = 1e-4):
         """
         Create a root-mean-square propagation optimizer for a model.
         :param beta: The weight of the previous mean square term
@@ -21,7 +21,7 @@ class RMSProp:
         self._BETA = beta
         self._EPSILON = epsilon
 
-        self._mean_squares_cache = {}  # Define the model mean squares cache
+        self._variances_cache = {}  # Define the model mean squares cache
 
     def calculate_adjustment(
             self,
@@ -37,22 +37,22 @@ class RMSProp:
         """
 
         # Retrieve the previous parameter mean squares
-        prev_vars = self._mean_squares_cache.get(parameter_id, None)
+        prev_variances = self._variances_cache.get(parameter_id, None)
 
         # Calculate the current gradient variances
-        if prev_vars is not None:
-            vars_partial = self._BETA * prev_vars
+        if prev_variances is not None:
+            variances_partial = self._BETA * prev_variances
             grads_partial = (1 - self._BETA) * (parameter_grads ** 2)
-            curr_vars = vars_partial + grads_partial
+            variances = variances_partial + grads_partial
         else:
-            curr_vars = parameter_grads ** 2
+            variances = parameter_grads ** 2
 
         # Cache the variances for later use
-        self._mean_squares_cache[parameter_id] = curr_vars
+        self._variances_cache[parameter_id] = variances
 
-        # Calculate the adjustment term
+        # Calculate the update term
         parameter_adjustment = \
             learning_rate * parameter_grads \
-            / np.sqrt(curr_vars + self._EPSILON)
+            / (np.sqrt(variances) + self._EPSILON)
 
         return parameter_adjustment  # Return the parameter adjustment

@@ -10,7 +10,7 @@ import numpy as np
 
 
 class Adam:
-    def __init__(self, beta1: float, beta2: float, epsilon = 1e-8):
+    def __init__(self, beta1: float, beta2: float, epsilon = 1e-4):
         """
         Create a root-mean-square propagation optimizer for a model.
         :param beta1: The weight of the previous mean gradients term
@@ -43,31 +43,33 @@ class Adam:
 
         # Retrieve the cached parameter terms
         prev_means = self._means_cache.get(parameter_id, None)
-        prev_vars = self._variances_cache.get(parameter_id, None)
+        prev_variances = self._variances_cache.get(parameter_id, None)
         curr_iter = self._iteration_nums_cache.get(parameter_id, 1)
 
         # Calculate the new mean and variance terms
-        if not None in (prev_means, prev_vars):
+        if not prev_means is None and not prev_variances is None:
             means_partial = self._BETA1 * prev_means
-            vars_partial = self._BETA2 * prev_vars
+            variances_partial = self._BETA2 * prev_variances
         else:
             means_partial = np.zeros_like(parameter_grads)
-            vars_partial = np.zeros_like(parameter_grads)
-        curr_means = means_partial + (1 - self._BETA1) * parameter_grads
-        curr_vars = vars_partial + (1 - self._BETA2) * (parameter_grads ** 2)
+            variances_partial = np.zeros_like(parameter_grads)
+        means = means_partial + (1 - self._BETA1) * parameter_grads
+        variances = \
+            variances_partial \
+            + (1 - self._BETA2) * (parameter_grads ** 2)
 
         # Cache the current terms for later use
-        self._means_cache[parameter_id] = curr_means
-        self._variances_cache[parameter_id] = curr_vars
+        self._means_cache[parameter_id] = means
+        self._variances_cache[parameter_id] = variances
         self._iteration_nums_cache[parameter_id] = curr_iter
 
         # Rescale the terms to account for bias
-        corrected_means = curr_means / (1 - self._BETA1 ** curr_iter)
-        corrected_vars = curr_vars / (1 - self._BETA2 ** curr_iter)
+        corrected_means = means / (1 - self._BETA1 ** curr_iter)
+        corrected_variances = variances / (1 - self._BETA2 ** curr_iter)
 
         # Calculate the parameter adjustment term
         parameter_adjustment = \
             learning_rate * corrected_means \
-            / np.sqrt(corrected_vars + self._EPSILON)
+            / np.sqrt(corrected_variances + self._EPSILON)
 
         return parameter_adjustment  # Return the parameter adjustment
