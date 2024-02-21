@@ -4,12 +4,12 @@ Initialization module for the losses package.
 
 __author__ = 'Dylan Warnecke'
 
-__version__ = '1.0'
+__version__ = '1.1'
 
 from losses.categorical_cross_entropy import CategoricalCrossEntropy
 
 # Ensure that these always match the names of the modules in this package
-valid_losses = [CategoricalCrossEntropy]
+valid_losses = (CategoricalCrossEntropy,)
 
 
 def verify_loss(loss):

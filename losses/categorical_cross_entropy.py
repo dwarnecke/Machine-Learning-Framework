@@ -1,14 +1,18 @@
 """
-The categorical cross entropy loss function.
+Categorical cross entropy loss function.
 
 This loss function should be used when there is only one model output category
 that each input case falls into.
 """
 
+__author__ = 'Dylan Warnecke'
+
+__version__ = '1.1'
+
 import numpy as np
 
 # Small value to offset division by zero
-epsilon = 1e-16
+epsilon = 1e-8
 
 
 def calculate_softmax(logits: np.ndarray) -> np.ndarray:
@@ -26,14 +30,17 @@ def calculate_softmax(logits: np.ndarray) -> np.ndarray:
 
 
 class CategoricalCrossEntropy:
+    """
+    Categorical cross entropy loss. This loss function should be used when
+    there is only one model output label that each input can be classified
+    with.
+    """
+
     def __init__(self, from_logits=False):
         """
         Define the loss being used to train a model
         :param from_logits: Whether the input to the loss is in logits or not
         """
-
-        # Call the super initializer
-        super().__init__()
 
         # Set if the loss calculation is from logit form or not
         self._FROM_LOGITS = from_logits
@@ -46,14 +53,6 @@ class CategoricalCrossEntropy:
         :param labels: The ground truth classifications for each sample
         :return: The average loss of all the input model predictions
         """
-
-        # Check that the predictions and labels are the same shape
-        if np.shape(outputs) != np.shape(labels):
-            raise ValueError("Predictions and labels need the same shape.")
-
-        # Check that the predictions and labels are only two-dimensional
-        if np.ndim(outputs) != 2:
-            raise ValueError("Predictions and labels must be two dimensional.")
 
         # Calculate the softmax activated values if necessary
         if self._FROM_LOGITS:
@@ -75,14 +74,6 @@ class CategoricalCrossEntropy:
         :param labels: The ground truth labels for each sample
         :return: The partial derivatives of the loss respecting model output
         """
-
-        # Check that arguments are valid
-        if type(outputs) != np.ndarray or type(labels) != np.ndarray:
-            raise TypeError("Outputs and labels must be numpy arrays.")
-        elif outputs.shape != labels.shape:
-            raise ValueError("Outputs and labels need the same shape.")
-        elif np.ndim(outputs) != 2:
-            raise ValueError("Outputs and labels must be two dimensional.")
 
         # Calculate the loss gradient with respect to the model output
         n_examples = np.shape(labels)[0]
