@@ -7,6 +7,7 @@ __author__ = 'Dylan Warnecke'
 __version__ = '1.1'
 
 import numpy as np
+
 import layers
 import losses
 import optimizers
@@ -14,6 +15,11 @@ from layers.input_layer import InputLayer
 
 
 class Model:
+    """
+    Neural network model to predict and classify data. Many layers can
+    compose this model.
+    """
+
     def __init__(
             self,
             loss: losses.valid_losses,
@@ -29,22 +35,21 @@ class Model:
 
         self._LOSS = loss  # Define the model loss function
 
-        # Check the layer types
+        # Check the layer types are valid
         for layer_idx, layer in enumerate(model_layers):
-            if not layers.verify_layer(layer):
-                raise TypeError("Model layer arguments must be layers.")
-            elif layer_idx != 0 and isinstance(layer, InputLayer):
-                raise ValueError("Input layers can only be the first layer.")
+            if layer_idx != 0 and isinstance(layer, InputLayer):
+                raise ValueError("Only the first layer can be an input layer.")
             elif layer_idx == 0 and not isinstance(layer, InputLayer):
                 raise ValueError("The first layer must be an input layer.")
         self._LAYERS = model_layers
 
-        # Connect the layers together
+        # Initialize each of the layers
         for layer_idx, layer in enumerate(model_layers):
             if layer_idx == 0:
-                self._INPUT_UNITS = layer.units
+                self._INPUT_UNITS = layer.features
             else:
-                layer.compile(layer_idx, model_layers[layer_idx - 1].units)
+                previous_features = model_layers[layer_idx - 1].features
+                layer.initialize(previous_features, layer_idx)
 
         # Message that the model is built
         print(f"Model built with {len(self._LAYERS)} layers\n")
@@ -64,7 +69,9 @@ class Model:
         # Forward propagate through model
         inputs_propagated = examples
         for layer in self._LAYERS:
-            inputs_propagated = layer.forward(inputs_propagated, False)
+            inputs_propagated = layer.forward(
+                inputs_propagated,
+                in_training=False)
 
         return inputs_propagated  # Return the model outputs
 
@@ -73,16 +80,16 @@ class Model:
             examples: np.ndarray,
             labels: np.ndarray,
             batch_size: int,
-            num_epochs: int,
+            epochs: int,
             learning_rate: float,
-            optimizer: optimizers.valid_optimizers = None):
+            optimizer: optimizers.valid_optimizers = None) -> np.ndarray:
         """
         Optimize the model using batch gradient descent and the compilation
         parameters.
         :param examples: The training examples to fit the model on
         :param labels: The ground truth labels for the samples provided
         :param batch_size: The size of each batch in training
-        :param num_epochs: The number of epochs to train the model for
+        :param epochs: The number of epochs to train the model for
         :param learning_rate: The rate at which to update the parameters at
         :return: The training history of the model
         :param optimizer: The optimizer algorithm to train the model
@@ -91,14 +98,11 @@ class Model:
         # Check that the batch size and epochs are positive
         if batch_size < 1:
             raise ValueError("Batch size must be positive.")
-        if num_epochs < 1:
+        elif epochs < 1:
             raise ValueError("Epochs must be positive.")
 
-        # Check that the input shape is consistent
-        if examples.shape[-1] != self._INPUT_UNITS:
-            raise ValueError("Number of inputs must be consistent.")
-
-        training_history = np.empty(num_epochs)  # Define the training history
+        # Define the training loss history
+        training_history = np.empty(epochs)
 
         # Properly define the training batch size
         n_examples = examples.shape[0]
@@ -106,11 +110,11 @@ class Model:
             batch_size = n_examples
 
         # Message the model is building
-        print(f"Fitting the model over {num_epochs} epochs...")
+        print(f"Fitting the model over {epochs} epochs...")
 
         # Fit the model using batch descent
         generator = np.random.default_rng()
-        for epoch in range(num_epochs):
+        for epoch in range(epochs):
             # Shuffle the training examples and labels
             shuffling_indices = generator.permutation(n_examples)
             permuted_examples = examples[shuffling_indices]
@@ -126,7 +130,9 @@ class Model:
                 # Forward propagate through the model
                 forward_inputs = batch_examples
                 for layer in self._LAYERS:
-                    forward_inputs = layer.forward(forward_inputs, True)
+                    forward_inputs = layer.forward(
+                        forward_inputs,
+                        in_training=True)
                 batch_outputs = forward_inputs
 
                 # Backward propagate through the model
@@ -151,6 +157,6 @@ class Model:
             print(f"Epoch {epoch + 1}: loss {round(current_loss, 4)}")
 
         # Message that the model is trained
-        print(f"Model is fit after {num_epochs} epochs\n")
+        print(f"Model is fit after {epochs} epochs\n")
 
         return training_history  # Return the training history

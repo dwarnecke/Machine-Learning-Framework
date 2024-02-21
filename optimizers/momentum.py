@@ -20,7 +20,7 @@ class Momentum:
 
         self._momentum_cache = {}  # Define the model momentum cache
 
-    def calculate_adjustment(
+    def calculate_delta(
             self,
             parameter_id: str,
             parameter_grads: np.ndarray,
@@ -38,9 +38,9 @@ class Momentum:
 
         # Calculate the momentum term of this iteration
         if prev_momentum is not None:
-            momentum_partial = self._BETA * prev_momentum
-            grads_partial = (1 - self._BETA) * parameter_grads
-            momentum = momentum_partial + grads_partial
+            momentum = (
+                self._BETA * prev_momentum
+                + (1 - self._BETA) * parameter_grads)
         else:
             momentum = parameter_grads
 

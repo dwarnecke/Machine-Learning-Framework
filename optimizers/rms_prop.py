@@ -23,7 +23,7 @@ class RMSProp:
 
         self._variances_cache = {}  # Define the model mean squares cache
 
-    def calculate_adjustment(
+    def calculate_delta(
             self,
             parameter_id: str,
             parameter_grads: np.ndarray,
@@ -41,9 +41,9 @@ class RMSProp:
 
         # Calculate the current gradient variances
         if prev_variances is not None:
-            variances_partial = self._BETA * prev_variances
-            grads_partial = (1 - self._BETA) * (parameter_grads ** 2)
-            variances = variances_partial + grads_partial
+            variances = (
+                self._BETA * prev_variances
+                + (1 - self._BETA) * (parameter_grads ** 2))
         else:
             variances = parameter_grads ** 2
 
@@ -51,8 +51,8 @@ class RMSProp:
         self._variances_cache[parameter_id] = variances
 
         # Calculate the update term
-        parameter_adjustment = \
-            learning_rate * parameter_grads \
-            / (np.sqrt(variances) + self._EPSILON)
+        parameter_adjustment = (
+            learning_rate * parameter_grads
+            / (np.sqrt(variances) + self._EPSILON))
 
         return parameter_adjustment  # Return the parameter adjustment

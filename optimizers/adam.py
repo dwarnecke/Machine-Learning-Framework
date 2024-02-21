@@ -28,7 +28,7 @@ class Adam:
         self._variances_cache = {}
         self._iteration_nums_cache = {}
 
-    def calculate_adjustment(
+    def calculate_delta(
             self,
             parameter_id: str,
             parameter_grads: np.ndarray,
@@ -48,15 +48,15 @@ class Adam:
 
         # Calculate the new mean and variance terms
         if not prev_means is None and not prev_variances is None:
-            means_partial = self._BETA1 * prev_means
-            variances_partial = self._BETA2 * prev_variances
+            means = (
+                self._BETA1 * prev_means
+                + (1 - self._BETA1) * parameter_grads)
+            variances = (
+                self._BETA2 * prev_variances
+                + (1 - self._BETA2) * (parameter_grads ** 2))
         else:
-            means_partial = np.zeros_like(parameter_grads)
-            variances_partial = np.zeros_like(parameter_grads)
-        means = means_partial + (1 - self._BETA1) * parameter_grads
-        variances = \
-            variances_partial \
-            + (1 - self._BETA2) * (parameter_grads ** 2)
+            means = (1 - self._BETA1) * parameter_grads
+            variances = (1 - self._BETA2) * (parameter_grads ** 2)
 
         # Cache the current terms for later use
         self._means_cache[parameter_id] = means
@@ -68,8 +68,8 @@ class Adam:
         corrected_variances = variances / (1 - self._BETA2 ** curr_iter)
 
         # Calculate the parameter adjustment term
-        parameter_adjustment = \
-            learning_rate * corrected_means \
-            / np.sqrt(corrected_variances + self._EPSILON)
+        parameter_adjustment = (
+            learning_rate * corrected_means
+            / np.sqrt(corrected_variances + self._EPSILON))
 
         return parameter_adjustment  # Return the parameter adjustment
