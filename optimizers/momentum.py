@@ -1,53 +1,84 @@
 """
-Momentum optimizer to train a model.
+Module for the momentum optimizer class.
 """
 
 __author__ = 'Dylan Warnecke'
 
-__version__ = '1.0'
+__version__ = '2.0'
 
 import numpy as np
 
 
 class Momentum:
+    """
+    Momentum optimization algorithm object to train a neural network.
+    This algorithm works by updating the parameters proportional to their
+    mean gradients.
+    """
+
     def __init__(self, beta: float):
         """
         Create a momentum optimizer for a model.
         :param beta: The weight of the previous momentum term
         """
 
-        self._BETA = beta # Save the defined beta
+        # Save the defined beta
+        self._BETA = beta
 
-        self._momentum_cache = {}  # Define the model momentum cache
+        # Define the model momentum cache
+        self._momentum_cache = {}
 
-    def calculate_delta(
+    def _calculate_momentum(
             self,
-            parameter_id: str,
-            parameter_grads: np.ndarray,
-            learning_rate: float) -> np.ndarray:
+            network_id: str,
+            gradients: np.ndarray) -> np.ndarray:
         """
-        Calculate the adjustment term for optimizing any parameter.
-        :param parameter_id: The identification string for the cache
-        :param parameter_grads: The loss gradients respecting parameters
-        :param learning_rate: The rate at which to change the parameters by
-        :return: The values to update the parameters by
+        Calculate the current gradient momentum of a parameter.
+        :param network_id: The parameter network identification string
+        :param gradients: The loss gradients respecting the parameters
+        :return: The current momentum of the parameter
         """
 
-        # Retrieve the previous parameter momentum
-        prev_momentum = self._momentum_cache.get(parameter_id, None)
+        # Get the previous momentum term
+        momentum = self._momentum_cache.get(network_id)
 
-        # Calculate the momentum term of this iteration
-        if prev_momentum is not None:
+        # Calculate the new momentum term
+        if momentum is not None:
             momentum = (
-                self._BETA * prev_momentum
-                + (1 - self._BETA) * parameter_grads)
+                self._BETA * momentum
+                + (1 - self._BETA) * gradients)
         else:
-            momentum = parameter_grads
+            momentum = gradients
 
-        # Cache the momentum for later use
-        self._momentum_cache[parameter_id] = momentum
+        return momentum
 
-        # Rescale the momentum by the learning rate
-        parameter_adjustment = learning_rate * momentum
+    def update_parameters(self, parameters: dict, alpha: float) -> dict:
+        """
+        Update the layer passed parameters using the algorithm.
+        :param parameters: The layer parameter dictionary to update
+        :param alpha: The learning rate to change the parameters by
+        :return: The newly updated layer parameter dictionary
+        """
 
-        return parameter_adjustment  # Return the parameter adjustment
+        # Check that the learning rate is positive
+        if alpha <= 0:
+            raise ValueError("Learning rate must be positive.")
+
+        # Update every parameter in the layer
+        for parameter in parameters.values():
+            # Check that the id and gradients are defined
+            try:
+                network_id = parameter['id']
+                gradients = parameter['gradients']
+            except KeyError:
+                raise ValueError("Parameter gradients must be defined.")
+
+            # Calculate and save the current momentum
+            momentum = self._calculate_momentum(network_id, gradients)
+            self._momentum_cache[network_id] = momentum
+
+            # Update the current parameter
+            parameter['values'] -= alpha * momentum
+            parameter['gradients'] = None
+
+        return parameters

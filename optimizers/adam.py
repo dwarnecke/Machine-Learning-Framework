@@ -1,75 +1,123 @@
 """
-Adam optimizer to train a model.
+Module for the adam optimizer class.
 """
 
 __author__ = 'Dylan Warnecke'
 
-__version__ = '1.0'
+__version__ = '2.0'
 
 import numpy as np
 
+from optimizers.optimizer import Optimizer
 
-class Adam:
-    def __init__(self, beta1: float, beta2: float, epsilon = 1e-4):
+class Adam(Optimizer):
+    """
+    Adam optimization algorithm object to train a neural network. This
+    algorithm works by updating the parameters proportional to the gradient
+    means and inversely to the square root of the gradient variances proxy.
+    """
+
+    _EPSILON = 1e-4
+
+    def __init__(self, beta1: float, beta2: float):
         """
-        Create a root-mean-square propagation optimizer for a model.
+        Create an adam optimizer for a model.
         :param beta1: The weight of the previous mean gradients term
         :param beta2: The weight of the previous mean square gradients term
-        :param epsilon: The division by zero offset term
         """
 
         # Save the defined optimization parameters
         self._BETA1 = beta1
         self._BETA2 = beta2
-        self._EPSILON = epsilon
 
         # Define the term and iteration number caches
         self._means_cache = {}
         self._variances_cache = {}
-        self._iteration_nums_cache = {}
+        self._iteration_cache = {}
 
-    def calculate_delta(
+    def _calculate_means(
             self,
-            parameter_id: str,
-            parameter_grads: np.ndarray,
-            learning_rate: float) -> np.ndarray:
+            network_id: str,
+            gradients: np.ndarray) -> np.ndarray:
         """
-        Calculate the adjustment term for optimizing any parameter.
-        :param parameter_id: The parameter identification string for the cache
-        :param parameter_grads: The loss gradients respecting parameters
-        :param learning_rate: The rate at which to change the parameters by
-        :return: The values to update the parameters by
+        Calculate the current gradient means of a parameter.
+        :param network_id: The parameter network identification string
+        :param gradients: The loss gradients respecting the parameters
+        :return: The current gradient means of the parameter
         """
 
-        # Retrieve the cached parameter terms
-        prev_means = self._means_cache.get(parameter_id, None)
-        prev_variances = self._variances_cache.get(parameter_id, None)
-        curr_iter = self._iteration_nums_cache.get(parameter_id, 1)
+        # Get the previous means term
+        means = self._means_cache.get(network_id)
 
-        # Calculate the new mean and variance terms
-        if not prev_means is None and not prev_variances is None:
-            means = (
-                self._BETA1 * prev_means
-                + (1 - self._BETA1) * parameter_grads)
-            variances = (
-                self._BETA2 * prev_variances
-                + (1 - self._BETA2) * (parameter_grads ** 2))
+        # Calculate the new means term
+        if means is not None:
+            means = self._BETA1 * means + (1 - self._BETA1) * gradients
         else:
-            means = (1 - self._BETA1) * parameter_grads
-            variances = (1 - self._BETA2) * (parameter_grads ** 2)
+            means = (1 - self._BETA1) * gradients
 
-        # Cache the current terms for later use
-        self._means_cache[parameter_id] = means
-        self._variances_cache[parameter_id] = variances
-        self._iteration_nums_cache[parameter_id] = curr_iter
+        return means
 
-        # Rescale the terms to account for bias
-        corrected_means = means / (1 - self._BETA1 ** curr_iter)
-        corrected_variances = variances / (1 - self._BETA2 ** curr_iter)
+    def _calculate_variances(
+            self,
+            network_id: str,
+            gradients: np.ndarray) -> np.ndarray:
+        """
+        Calculate the current gradient variances of a parameter.
+        :param network_id: The parameter network identification string
+        :param gradients: The loss gradients respecting the parameters
+        :return: The current mean square of a parameter
+        """
 
-        # Calculate the parameter adjustment term
-        parameter_adjustment = (
-            learning_rate * corrected_means
-            / np.sqrt(corrected_variances + self._EPSILON))
+        # Get the previous mean squares term
+        variances = self._variances_cache.get(network_id, None)
 
-        return parameter_adjustment  # Return the parameter adjustment
+        # Calculate the new mean squares term
+        if variances is not None:
+            variances = (
+                    self._BETA2 * variances
+                    + (1 - self._BETA2) * (gradients ** 2))
+        else:
+            variances = (1 - self._BETA2) * (gradients ** 2)
+
+        return variances
+
+    def update_parameters(self, parameters: dict, alpha: float) -> dict:
+        """
+        Update the layer passed parameters using the algorithm.
+        :param parameters: The layer parameter dictionary to update
+        :param alpha: The learning rate to change the parameters by
+        :return: The newly updated layer parameter dictionary
+        """
+
+        # Check that the learning rate is positive
+        if alpha <= 0:
+            raise ValueError("Learning rate must be positive.")
+
+        # Update every parameter in the layer
+        for parameter in parameters.values():
+            # Check that the id and gradients are defined
+            try:
+                network_id = parameter['id']
+                gradients = parameter['gradients']
+            except KeyError:
+                raise ValueError("Parameter gradients must be defined.")
+
+            # Calculate and save the current algorithm terms
+            means = self._calculate_means(network_id, gradients)
+            variances = self._calculate_variances(network_id, gradients)
+            self._means_cache[network_id] = means
+            self._variances_cache[network_id] = variances
+
+            # Correct the terms by their zero bias
+            iteration = self._iteration_cache.get(network_id, 0) + 1
+            corrected_means = means / (1 - self._BETA1 ** iteration)
+            corrected_variances = variances / (1 - self._BETA2 ** iteration)
+            self._iteration_cache[network_id] = iteration
+
+            # Update the current parameter
+            parameter['values'] -= (
+                    alpha * corrected_means
+                    / (np.sqrt(corrected_variances) + Adam._EPSILON))
+            parameter['gradients'] = None
+
+        return parameters
