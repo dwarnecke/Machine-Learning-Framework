@@ -1,5 +1,5 @@
 """
-Two dimensional convolution layer in a machine learning model.
+Two-dimensional convolution layer in a machine learning model.
 """
 
 __author__ = 'Dylan Warnecke'
@@ -9,11 +9,10 @@ __version__ = '1.0'
 import math
 import numpy as np
 
-from layer import Layer
-from optimizers import Optimizer
+from layers.layer import Layer
 
 
-def pad(inputs: np.ndarray, padding_size: int) -> np.ndarray:
+def _pad(inputs: np.ndarray, padding_size: int) -> np.ndarray:
     """
     Pad zeros around images to prevent loss in convolution.
     :param inputs: The input data to be padded
@@ -37,10 +36,10 @@ def pad(inputs: np.ndarray, padding_size: int) -> np.ndarray:
         padding_size:(inputs.shape[1] + padding_size),
         padding_size:(inputs.shape[2] + padding_size)] = inputs
 
-    return padded_images  # Return the newly padded images
+    return padded_images
 
 
-def convolve(inputs: np.ndarray, kernels: np.ndarray) -> np.ndarray:
+def _convolve(inputs: np.ndarray, kernels: np.ndarray) -> np.ndarray:
     """
     Convolve many input channels and kernels.
     :param inputs: The inputs to use in the convolutions
@@ -67,7 +66,7 @@ def convolve(inputs: np.ndarray, kernels: np.ndarray) -> np.ndarray:
         for x in range(input_height - kernel_size + 1)]
     ).transpose((2, 0, 1, 3))  # Example, row, column, channel indexing
 
-    return feature_maps  # Return the convolution feature maps
+    return feature_maps
 
 
 class Convolution(Layer):
@@ -95,7 +94,7 @@ class Convolution(Layer):
         # Call the superclass initializer
         super().__init__(True)
 
-        # Check and define the layer architecture parameters
+        # Check and define the layer hyperparameters
         if channels < 1:
             raise ValueError("Number of channels must be positive.")
         elif kernel_size < 1:
@@ -111,36 +110,50 @@ class Convolution(Layer):
         self._network_id = 'Dense' + str(Convolution.layers)
 
         # Define the kernels and biases dictionaries
-        self._kernels = {}
-        self._biases = {}
+        self.parameters['kernel'] = {}
+        self.parameters['bias'] = {}
 
         # Define the calculation retainers
         self._layer_inputs = None
 
-    def initialize(self, channels_in: int) -> None:
+    def initialize(self, input_shape: tuple) -> None:
         """
         Initialize the parameters to prepare the layer for use.
-        :param channels_in: The number of channels leading into the layer
+        :param input_shape: The array shape of a single input sample
         """
 
-        # Check that the number of units is positive
-        if channels_in < 1:
-            raise ValueError("Number of input channels must be positive.")
+        # Check that the feature dimension is positive
+        if input_shape[-1] < 1:
+            raise ValueError("Feature dimension must be positive.")
+        input_channels = input_shape[-1]
+
+        # Define the layer output shape
+        if self._PADDING:
+            self.OUTPUT_SHAPE = input_shape[:-1] + (self._CHANNELS,)
+        else:
+            paring_size = self._KERNEL_SIZE - 1
+            output_shape = list(input_shape[:-1] + (self._CHANNELS,))
+            output_shape[-3] -= paring_size
+            output_shape[-2] -= paring_size
+            self.OUTPUT_SHAPE = tuple(output_shape)
 
         # Define the parameter identification keys
-        self._kernels['id'] = self._network_id + '_kernels'
-        self._biases['id'] = self._network_id + '_biases'
+        self.parameters['kernels']['id'] = self._network_id + '_kernels'
+        self.parameters['biases']['id'] = self._network_id + '_biases'
 
         # Initialize the kernels using Xavier initialization
         generator = np.random.default_rng()
-        fan_in = channels_in * self._KERNEL_SIZE ** 2
+        fan_in = input_channels * self._KERNEL_SIZE ** 2
         fan_out = self._CHANNELS
         scale = math.sqrt(2 / (fan_in + fan_out))
-        size = (self._CHANNELS,) + 2 * (self._KERNEL_SIZE,) + (channels_in,)
-        self._kernels['values'] = generator.normal(0, scale, size)
+        size = (self._CHANNELS,) + 2 * (self._KERNEL_SIZE,) + (input_channels,)
+        kernels = generator.normal(0, scale, size)
+        self.parameters['kernels']['values'] = kernels
 
         # Initialize the biases at zero
-        self._biases = np.zeros((1, 1, 1, self._CHANNELS))
+        size = len(input_shape) * (1,) + (self._CHANNELS,)
+        biases = np.zeros(size)
+        self.parameters['biases']['values'] = biases
 
     def forward(self, layer_inputs: np.ndarray, **kwargs) -> np.ndarray:
         """
@@ -152,10 +165,10 @@ class Convolution(Layer):
 
         # Check that the parameters are initialized
         try:
-            self._kernels['values'] = self._kernels['values']
-            self._biases['values'] = self._biases['values']
+            kernels = self.parameters['kernels']['values']
+            biases = self.parameters['biases']['values']
         except KeyError:
-            raise ValueError("Parameter values must be initialized first.")
+            raise ValueError("Parameter values must be initialized.")
 
         # Cache these inputs for backpropagation later
         self._layer_inputs = layer_inputs
@@ -164,12 +177,10 @@ class Convolution(Layer):
         padded_inputs = layer_inputs
         if self._PADDING:
             paring_size = int((self._KERNEL_SIZE - 1) / 2)
-            padded_inputs = pad(layer_inputs, paring_size)
+            padded_inputs = _pad(layer_inputs, paring_size)
 
         # Convolve the inputs and offset by the bias
-        kernels = self._kernels['values']
-        biases = self._biases['values']
-        layer_outputs = convolve(padded_inputs, kernels) + biases
+        layer_outputs = _convolve(padded_inputs, kernels) + biases
 
         return layer_outputs
 
@@ -185,32 +196,33 @@ class Convolution(Layer):
         try:
             layer_inputs = self._layer_inputs[:]
         except TypeError:
-            raise ValueError("Forward propagation must be completed first.")
+            raise ValueError("Forward propagation must be completed.")
 
-        # Pad the input values adequately for computing kernel gradients
+        # Pad the input values adequately for calculating kernel gradients
         padded_inputs = layer_inputs
         if self._PADDING:
             padding_size = int((self._KERNEL_SIZE - 1) / 2)
-            padded_inputs = pad(layer_inputs, padding_size)
+            padded_inputs = _pad(layer_inputs, padding_size)
 
-        # Pad the output gradients adequately for computing input gradients
+        # Pad the output gradients adequately for calculating input gradients
         padding_size = self._KERNEL_SIZE - 1
-        padded_gradients = pad(output_gradients, padding_size)
+        padded_gradients = _pad(output_gradients, padding_size)
         if self._PADDING:
             padding_size = int(padding_size / 2)
-            padded_gradients = pad(output_gradients, padding_size)
+            padded_gradients = _pad(output_gradients, padding_size)
 
         # Calculate the kernels gradients
-        kernels_gradients = convolve(padded_inputs, output_gradients)
-        self._kernels['gradients'] = kernels_gradients
+        kernels_gradients = _convolve(padded_inputs, output_gradients)
+        self.parameters['kernels']['gradients'] = kernels_gradients
 
         # Calculate the biases gradients
         biases_gradients = output_gradients.sum(axis=(0, 1, 2), keepdims=True)
-        self._biases['gradients'] = biases_gradients
+        self.parameters['biases']['gradients'] = biases_gradients
 
         # Calculate the input gradients
-        flipped_kernels = self._kernels['values'][:, ::-1, ::-1]
-        input_gradients = convolve(padded_gradients, flipped_kernels)
+        kernels = self.parameters['kernels']['values']
+        flipped_kernels = kernels[:, ::-1, ::-1]
+        input_gradients = _convolve(padded_gradients, flipped_kernels)
 
         return input_gradients
 

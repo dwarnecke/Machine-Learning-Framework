@@ -1,5 +1,5 @@
 """
-Dense layer in a machine learning model.
+Fully connected, dense layer in a machine learning model.
 """
 
 __author__ = 'Dylan Warnecke'
@@ -34,14 +34,14 @@ class Dense(Layer):
         # Call the superclass initializer
         super().__init__(True)
 
-        # Check and define the layer architecture parameters
+        # Check and define the layer output shape
         if activation is not None:
             self._ACTIVATION = activation
         else:
             self._ACTIVATION = activations.linear
         if units < 1:
             raise ValueError("Units must be positive.")
-        self.features = units
+        self.UNITS = units
 
         # Define the network identification key
         Dense.layers += 1
@@ -55,16 +55,20 @@ class Dense(Layer):
         self._layer_inputs = None
         self._linear_mediums = None
 
-    def initialize(self, units_in: int) -> None:
+    def initialize(self, input_shape: tuple) -> None:
         """
         Initialize the parameters to connect the model together and prepare
         the layer for use.
-        :param units_in: The feature dimension leading into this layer
+        :param input_shape: The array shape of a single input sample
         """
 
-        # Check and that number of units is positive
-        if units_in < 1:
-            raise ValueError("Number of input units must be positive.")
+        # Check that the feature dimension is positive
+        if input_shape[-1] < 1:
+            raise ValueError("Feature dimension must be positive.")
+        input_units = input_shape[-1]
+
+        # Define the layer output shape
+        self.OUTPUT_SHAPE = input_shape[:-1] + (self.UNITS,)
 
         # Define the parameter identification keys
         self.parameters['kernel']['id'] = self._network_id + '_kernel'
@@ -72,22 +76,23 @@ class Dense(Layer):
 
         # Initialize the kernel according to activation function
         generator = np.random.default_rng()
-        size = (units_in, self.features)
+        size = (input_shape[-1], self.UNITS)
         if self._ACTIVATION in (activations.sigmoid, activations.tanh):
             # Use Xavier initialization
-            scale = math.sqrt(6 / (units_in + self.features))
+            scale = math.sqrt(6 / (input_units + self.UNITS))
             kernel = generator.uniform(-scale, scale, size)
         elif self._ACTIVATION == activations.relu:
             # Use He initialization
-            scale = math.sqrt(2 / units_in)
+            scale = math.sqrt(2 / input_units)
             kernel = generator.normal(0, scale, size)
         else:
-            scale = math.sqrt(1 / units_in)
+            scale = math.sqrt(1 / input_units)
             kernel = generator.normal(0, scale, size)
         self.parameters['kernel']['values'] = kernel
 
         # Initialize the bias at zero
-        self.parameters['bias']['values'] = np.zeros((1, self.features))
+        size = len(input_shape) * (1,) + (self.UNITS,)
+        self.parameters['bias']['values'] = np.zeros(size)
 
     def forward(self, layer_inputs: np.ndarray, **kwargs) -> np.ndarray:
         """
@@ -97,19 +102,19 @@ class Dense(Layer):
         :return: The activated values that the layer calculates
         """
 
-        # Check that the layer is initialized
+        # Check that the parameter values are initialized
         try:
             kernel = self.parameters['kernel']['values']
             bias = self.parameters['bias']['values']
         except KeyError:
-            raise ValueError("Parameter values must be initialized first.")
+            raise ValueError("Parameter values must be initialized.")
 
-        # Calculate the layer outputs by transforming and delineating
+        # Transform and delineate the layer inputs
         activation = self._ACTIVATION
-        linear_mediums = layer_inputs @ kernel + bias  # Transform
-        layer_outputs = activation(linear_mediums)  # Delineate
+        linear_mediums = layer_inputs @ kernel + bias
+        layer_outputs = activation(linear_mediums)
 
-        # Cache these values for backpropagation later
+        # Save the calculations for backpropagation later
         self._layer_inputs = layer_inputs
         self._linear_mediums = linear_mediums
 
@@ -126,10 +131,10 @@ class Dense(Layer):
 
         # Check that forward propagation has been completed
         try:
-            linear_mediums = self._linear_mediums
-            layer_inputs = self._layer_inputs
+            linear_mediums = self._linear_mediums[:]  # None cannot be indexed
+            layer_inputs = self._layer_inputs[:]
         except TypeError:
-            raise ValueError("Forward propagation must be completed first.")
+            raise ValueError("Forward propagation must be completed.")
 
         # Retrieve the remaining layer attributes
         activation = self._ACTIVATION
@@ -144,8 +149,12 @@ class Dense(Layer):
         kernel_gradients = np.dot(layer_inputs.T, linear_gradients)
         bias_gradients = linear_gradients.sum(axis=0, keepdims=True)
 
-        # Cache the parameter gradients for updating later
+        # Save the parameter gradients for updating later
         self.parameters['kernel']['gradients'] = kernel_gradients
         self.parameters['bias']['gradients'] = bias_gradients
+
+        # Clear the retainers to prevent double use
+        self._linear_mediums = None
+        self._layer_inputs = None
 
         return input_gradients
