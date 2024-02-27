@@ -8,11 +8,11 @@ __version__ = '1.1'
 
 import numpy as np
 
-import layers
-import losses
-import optimizers
 from layers.input_layer import InputLayer
-
+from layers.layer import Layer
+from losses.loss import Loss
+from optimizers.optimizer import Optimizer
+from optimizers.gradient_descent import GradientDescent
 
 class Model:
     """
@@ -20,10 +20,7 @@ class Model:
     compose this model.
     """
 
-    def __init__(
-            self,
-            loss: losses.valid_losses,
-            *model_layers: layers.valid_layers):
+    def __init__(self, loss: Loss, *model_layers: Layer) -> None:
         """
         Create the neural network model.
         :param loss: The loss function to optimize the model with
@@ -31,11 +28,7 @@ class Model:
         :param model_layers: The layers to be implemented into the model
         """
 
-        print("Model is being built...")  # Message the model is being built
-
-        self._LOSS = loss  # Define the model loss function
-
-        # Check the layer types are valid
+        # Check and define the model layers
         for layer_idx, layer in enumerate(model_layers):
             if layer_idx != 0 and isinstance(layer, InputLayer):
                 raise ValueError("Only the first layer can be an input layer.")
@@ -43,16 +36,17 @@ class Model:
                 raise ValueError("The first layer must be an input layer.")
         self._LAYERS = model_layers
 
-        # Initialize each of the layers
-        for layer_idx, layer in enumerate(model_layers):
-            if layer_idx == 0:
-                self._INPUT_UNITS = layer.features
-            else:
-                previous_features = model_layers[layer_idx - 1].features
-                layer.initialize(previous_features, layer_idx)
+        # Define the model loss function
+        self._LOSS = loss
 
-        # Message that the model is built
-        print(f"Model built with {len(self._LAYERS)} layers\n")
+        # Initialize each of the layers
+        input_shape = model_layers[0].OUTPUT_SHAPE
+        for layer in model_layers[1:]:
+            layer.initialize(input_shape)
+
+            # Output of one layer is the input of the next
+            if layer.OUTPUT_SHAPE is not None:
+                input_shape = layer.OUTPUT_SHAPE
 
     def predict(self, examples: np.ndarray) -> np.ndarray:
         """
@@ -62,10 +56,6 @@ class Model:
         :return: The respective model predictions of the inputs
         """
 
-        # Check that the input shape is consistent
-        if examples.shape[-1] != self._INPUT_UNITS:
-            raise ValueError("Number of inputs must be consistent.")
-
         # Forward propagate through model
         inputs_propagated = examples
         for layer in self._LAYERS:
@@ -73,7 +63,37 @@ class Model:
                 inputs_propagated,
                 in_training=False)
 
-        return inputs_propagated  # Return the model outputs
+        return inputs_propagated
+
+    def _improve(
+            self,
+            batch_examples: np.ndarray,
+            batch_labels: np.ndarray,
+            alpha: float,
+            optimizer: Optimizer) -> None:
+        """
+        Complete an optimization step using a batch of examples and an
+        optimization algorithm.
+        :param batch_examples: The examples to use in the optimization step
+        :param batch_labels: The truth labels of the batch examples
+        :param alpha: The learning rate to change the parameters by
+        :param optimizer: The optimizer algorithm to train the model
+        """
+
+        # Forward propagate through the model
+        forward_outputs = batch_examples
+        for layer in self._LAYERS:
+            forward_outputs = layer.forward(forward_outputs, in_training=True)
+
+        # Backward propagate through the model
+        backward_gradients = self._LOSS.gradate(forward_outputs, batch_labels)
+        for layer in reversed(self._LAYERS):
+            backward_gradients = layer.backward(backward_gradients)
+
+        # Update the layers with the parameter gradients
+        for layer in self._LAYERS:
+            if layer.IS_TRAINABLE:
+                optimizer.update_parameters(layer.parameters, alpha)
 
     def fit(
             self,
@@ -81,8 +101,8 @@ class Model:
             labels: np.ndarray,
             batch_size: int,
             epochs: int,
-            learning_rate: float,
-            optimizer: optimizers.valid_optimizers = None) -> np.ndarray:
+            alpha: float,
+            optimizer: Optimizer = None) -> np.ndarray:
         """
         Optimize the model using batch gradient descent and the compilation
         parameters.
@@ -90,9 +110,9 @@ class Model:
         :param labels: The ground truth labels for the samples provided
         :param batch_size: The size of each batch in training
         :param epochs: The number of epochs to train the model for
-        :param learning_rate: The rate at which to update the parameters at
-        :return: The training history of the model
+        :param alpha: The learning rate to change the parameters by
         :param optimizer: The optimizer algorithm to train the model
+        :return: The training history of the model
         """
 
         # Check that the batch size and epochs are positive
@@ -100,6 +120,10 @@ class Model:
             raise ValueError("Batch size must be positive.")
         elif epochs < 1:
             raise ValueError("Epochs must be positive.")
+
+        # Default to gradient descent when no optimizer is given
+        if optimizer is None:
+            optimizer = GradientDescent()
 
         # Define the training loss history
         training_history = np.empty(epochs)
@@ -110,7 +134,7 @@ class Model:
             batch_size = n_examples
 
         # Message the model is building
-        print(f"Fitting the model over {epochs} epochs...")
+        print(f"Fitting the model over {epochs} epochs:")
 
         # Fit the model using batch descent
         generator = np.random.default_rng()
@@ -120,33 +144,15 @@ class Model:
             permuted_examples = examples[shuffling_indices]
             permuted_labels = labels[shuffling_indices]
 
-            for batch in range(n_examples // batch_size):
+            for batch_idx in range(n_examples // batch_size):
                 # Index the batch from training examples
-                lower_idx = batch_size * batch
-                upper_idx = batch_size * (batch + 1)
+                lower_idx = batch_size * batch_idx
+                upper_idx = batch_size * (batch_idx + 1)
                 batch_examples = permuted_examples[lower_idx: upper_idx]
                 batch_labels = permuted_labels[lower_idx: upper_idx]
 
-                # Forward propagate through the model
-                forward_inputs = batch_examples
-                for layer in self._LAYERS:
-                    forward_inputs = layer.forward(
-                        forward_inputs,
-                        in_training=True)
-                batch_outputs = forward_inputs
-
-                # Backward propagate through the model
-                output_gradients = self._LOSS.gradate(
-                    batch_outputs,
-                    batch_labels)
-                backward_gradients = output_gradients
-                for layer in reversed(self._LAYERS):
-                    backward_gradients = layer.backward(backward_gradients)
-
-                # Update the layers with the parameter gradients
-                for layer in self._LAYERS:
-                    if layer.IS_TRAINABLE:
-                        layer.update(optimizer, learning_rate)
+                # Complete an optimization step using the batch
+                self._improve(batch_examples, batch_labels, alpha, optimizer)
 
             # Calculate and cache the current model metrics
             current_outputs = self.predict(examples)
@@ -157,6 +163,6 @@ class Model:
             print(f"Epoch {epoch + 1}: loss {round(current_loss, 4)}")
 
         # Message that the model is trained
-        print(f"Model is fit after {epochs} epochs\n")
+        print(f"Model is fit after {epochs} epochs.\n")
 
-        return training_history  # Return the training history
+        return training_history
